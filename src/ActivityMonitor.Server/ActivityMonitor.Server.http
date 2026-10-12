@@ -1,0 +1,6 @@
+@ActivityMonitor.Server_HostAddress = http://localhost:5253
+
+GET {{ActivityMonitor.Server_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
