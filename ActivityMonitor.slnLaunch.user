@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "Новый профиль",
+    "Projects": [
+      {
+        "Path": "src\\ActivityMonitor.Agent\\ActivityMonitor.Agent.csproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "src\\ActivityMonitor.Server\\ActivityMonitor.Server.csproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]
