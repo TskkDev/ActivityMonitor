@@ -2,10 +2,6 @@ using System.Runtime.InteropServices;
 
 namespace ActivityMonitor.Agent.Services;
 
-/// <summary>
-/// Через WinAPI GetLastInputInfo узнаём, когда пользователь последний раз
-/// двигал мышь / нажимал клавиши. Без сторонних библиотек.
-/// </summary>
 internal static class UserActivityTracker
 {
     [StructLayout(LayoutKind.Sequential)]

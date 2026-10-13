@@ -5,11 +5,6 @@ using ActivityMonitor.Shared.Agents;
 
 namespace ActivityMonitor.Agent;
 
-/// <summary>
-/// Точка входа агента.
-/// Пока это обычная консоль (удобно отлаживать).
-/// Позже спрячем окно и добавим автозапуск при логине Windows.
-/// </summary>
 internal static class Program
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -21,6 +16,9 @@ internal static class Program
     {
         Console.Title = "ActivityMonitor Agent";
         Console.WriteLine("ActivityMonitor Agent starting...");
+
+        Autostart.EnsureEnabled();
+        Console.WriteLine("Autostart: enabled (HKCU Run)");
 
         var settings = LoadSettings();
         Console.WriteLine($"Server: {settings.ServerBaseUrl}");
@@ -36,7 +34,6 @@ internal static class Program
             cts.Cancel();
         };
 
-        // Главный цикл: если сервер недоступен — ждём и пробуем снова.
         while (!cts.IsCancellationRequested)
         {
             try
@@ -88,9 +85,17 @@ internal static class Program
                 LastActivityUtc = UserActivityTracker.GetLastInputUtc()
             };
 
-            await api.HeartbeatAsync(WorkstationIdentity.AgentId, heartbeat, ct);
+            var response = await api.HeartbeatAsync(WorkstationIdentity.AgentId, heartbeat, ct);
             Console.WriteLine(
                 $"[{DateTime.Now:HH:mm:ss}] Heartbeat OK | last activity (local): {heartbeat.LastActivityUtc.ToLocalTime():HH:mm:ss}");
+
+            if (response.PendingScreenshotRequestId is Guid requestId)
+            {
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Screenshot requested ({requestId:D}), capturing...");
+                var png = await Task.Run(ScreenCapture.CapturePrimaryScreenPng, ct);
+                await api.UploadScreenshotAsync(WorkstationIdentity.AgentId, requestId, png, ct);
+                Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Screenshot uploaded ({png.Length} bytes)");
+            }
 
             await Task.Delay(TimeSpan.FromSeconds(settings.HeartbeatIntervalSeconds), ct);
         }

@@ -1,8 +1,5 @@
 namespace ActivityMonitor.Shared.Agents;
 
-/// <summary>
-/// Тело запроса при первом подключении агента к серверу.
-/// </summary>
 public sealed class RegisterAgentRequest
 {
     public required string AgentId { get; init; }

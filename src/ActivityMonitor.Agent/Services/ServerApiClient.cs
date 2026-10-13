@@ -3,9 +3,6 @@ using ActivityMonitor.Shared.Agents;
 
 namespace ActivityMonitor.Agent.Services;
 
-/// <summary>
-/// Тонкая обёртка над HttpClient: только запросы, которые агент шлёт на сервер.
-/// </summary>
 internal sealed class ServerApiClient : IDisposable
 {
     private readonly HttpClient _http;
@@ -15,7 +12,7 @@ internal sealed class ServerApiClient : IDisposable
         _http = new HttpClient
         {
             BaseAddress = new Uri(serverBaseUrl.TrimEnd('/') + "/"),
-            Timeout = TimeSpan.FromSeconds(15)
+            Timeout = TimeSpan.FromSeconds(60)
         };
     }
 
@@ -27,10 +24,21 @@ internal sealed class ServerApiClient : IDisposable
         return info ?? throw new InvalidOperationException("Server returned empty registration response.");
     }
 
-    public async Task HeartbeatAsync(string agentId, HeartbeatRequest request, CancellationToken ct)
+    public async Task<HeartbeatResponse> HeartbeatAsync(string agentId, HeartbeatRequest request, CancellationToken ct)
     {
         var path = $"api/agents/{Uri.EscapeDataString(agentId)}/heartbeat";
         using var response = await _http.PostAsJsonAsync(path, request, ct);
+        response.EnsureSuccessStatusCode();
+        var body = await response.Content.ReadFromJsonAsync<HeartbeatResponse>(cancellationToken: ct);
+        return body ?? throw new InvalidOperationException("Server returned empty heartbeat response.");
+    }
+
+    public async Task UploadScreenshotAsync(string agentId, Guid requestId, byte[] pngBytes, CancellationToken ct)
+    {
+        var path = $"api/agents/{Uri.EscapeDataString(agentId)}/screenshot?requestId={requestId:D}";
+        using var content = new ByteArrayContent(pngBytes);
+        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/png");
+        using var response = await _http.PostAsync(path, content, ct);
         response.EnsureSuccessStatusCode();
     }
 
