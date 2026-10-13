@@ -66,11 +66,13 @@ public static class AgentEndpoints
             .DisableAntiforgery()
             .Accepts<byte[]>("image/png");
 
-        group.MapGet("/{agentId}/screenshot", (string agentId, AgentRegistry registry) =>
+        group.MapGet("/{agentId}/screenshot", (string agentId, HttpContext httpContext, AgentRegistry registry) =>
             {
                 if (!registry.TryGetScreenshot(agentId, out var screenshot) || screenshot is null)
                     return Results.NotFound(new { message = $"No screenshot for agent '{agentId}'." });
 
+                httpContext.Response.Headers["X-Request-Id"] = screenshot.RequestId.ToString("D");
+                httpContext.Response.Headers["X-Captured-At"] = screenshot.CapturedAtUtc.ToString("O");
                 return Results.File(screenshot.PngBytes, "image/png", $"screenshot-{agentId}.png");
             })
             .WithName("GetScreenshot")

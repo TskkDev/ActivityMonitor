@@ -9,6 +9,10 @@
       {
         "Path": "src\\ActivityMonitor.Server\\ActivityMonitor.Server.csproj",
         "Action": "Start"
+      },
+      {
+        "Path": "src\\ActivityMonitor.Admin\\ActivityMonitor.Admin.csproj",
+        "Action": "Start"
       }
     ]
   }

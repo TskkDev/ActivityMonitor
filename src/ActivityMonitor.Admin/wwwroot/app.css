@@ -20,6 +20,11 @@ a, .btn-link {
     padding-top: 1.1rem;
 }
 
+.top-muted {
+    color: #6b7280;
+    font-size: 0.9rem;
+}
+
 h1:focus {
     outline: none;
 }

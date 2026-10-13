@@ -1,0 +1,75 @@
+.agents-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+}
+
+.agents-toolbar h1 {
+    margin: 0;
+    font-size: 1.75rem;
+}
+
+.toolbar-subtitle {
+    margin: 0.35rem 0 0;
+    color: #6b7280;
+}
+
+.toolbar-sep {
+    margin: 0 0.35rem;
+}
+
+.toolbar-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.agents-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.empty-state {
+    padding: 2rem;
+    border: 1px dashed #c9d0da;
+    border-radius: 10px;
+    color: #6b7280;
+    text-align: center;
+}
+
+.preview-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    z-index: 2000;
+}
+
+.preview-dialog {
+    background: #fff;
+    border-radius: 12px;
+    max-width: min(1100px, 100%);
+    max-height: 90vh;
+    overflow: auto;
+    padding: 0.75rem;
+}
+
+.preview-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.preview-dialog img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+}

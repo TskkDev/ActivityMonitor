@@ -1,0 +1,85 @@
+.agent-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #d7dce3;
+    border-radius: 10px;
+    background: #fff;
+    min-height: 100%;
+}
+
+.agent-card.online {
+    border-color: #9fd6b0;
+}
+
+.agent-card.offline {
+    opacity: 0.78;
+}
+
+.agent-card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-dot {
+    width: 0.65rem;
+    height: 0.65rem;
+    border-radius: 50%;
+    background: #9aa3af;
+    flex-shrink: 0;
+}
+
+.agent-card.online .status-dot {
+    background: #22a85b;
+}
+
+.agent-name {
+    font-size: 1.05rem;
+}
+
+.agent-meta {
+    margin: 0;
+    display: grid;
+    gap: 0.35rem;
+}
+
+.agent-meta > div {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    gap: 0.5rem;
+    font-size: 0.9rem;
+}
+
+.agent-meta dt {
+    margin: 0;
+    color: #6b7280;
+    font-weight: 500;
+}
+
+.agent-meta dd {
+    margin: 0;
+    word-break: break-all;
+}
+
+.agent-error {
+    color: #b42318;
+    font-size: 0.85rem;
+}
+
+.screenshot-thumb {
+    border: 1px solid #d7dce3;
+    border-radius: 8px;
+    padding: 0;
+    overflow: hidden;
+    background: #111;
+    cursor: zoom-in;
+}
+
+.screenshot-thumb img {
+    display: block;
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+}

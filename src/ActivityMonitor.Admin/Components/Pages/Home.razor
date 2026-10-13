@@ -1,7 +1,204 @@
 ﻿@page "/"
+@rendermode InteractiveServer
+@using ActivityMonitor.Admin.Components.Agents
+@using ActivityMonitor.Admin.Services
+@using ActivityMonitor.Shared.Agents
+@implements IAsyncDisposable
+@inject MonitoringApiClient Api
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Employees</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="agents-toolbar">
+    <div>
+        <h1>Employees</h1>
+        <p class="toolbar-subtitle">
+            @if (_loading && _agents.Count == 0)
+            {
+                <span>Loading...</span>
+            }
+            else
+            {
+                <span>@_agents.Count total · @_onlineCount online</span>
+                <span class="toolbar-sep">·</span>
+                <span>Updated @_lastRefreshLocal</span>
+            }
+        </p>
+    </div>
 
-Welcome to your new app.
+    <div class="toolbar-actions">
+        <button class="btn btn-outline-secondary" disabled="@_loading" @onclick="RefreshAsync">Refresh</button>
+        <button class="btn btn-primary"
+                disabled="@(_busyAll || _onlineCount == 0)"
+                @onclick="RequestAllScreenshotsAsync">
+            @(_busyAll ? "Requesting screenshots..." : "Screenshot all online")
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(_pageError))
+{
+    <div class="alert alert-danger">@_pageError</div>
+}
+
+@if (!_loading && _agents.Count == 0)
+{
+    <div class="empty-state">No agents registered yet. Start an agent and wait for registration.</div>
+}
+else
+{
+    <div class="agents-grid">
+        @foreach (var agent in _agents)
+        {
+            <AgentCard Agent="agent"
+                       Busy="@IsBusy(agent.AgentId)"
+                       Error="@GetError(agent.AgentId)"
+                       PreviewDataUrl="@GetPreview(agent.AgentId)"
+                       RequestScreenshot="RequestOneAsync"
+                       OpenPreview="OpenPreview" />
+        }
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(_modalPreview))
+{
+    <div class="preview-backdrop" @onclick="ClosePreview">
+        <div class="preview-dialog" @onclick:stopPropagation="true">
+            <div class="preview-toolbar">
+                <strong>Screenshot</strong>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="ClosePreview">Close</button>
+            </div>
+            <img src="@_modalPreview" alt="Screenshot full size" />
+        </div>
+    </div>
+}
+
+@code {
+    private readonly List<AgentInfo> _agents = [];
+    private readonly Dictionary<string, string> _previews = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, string> _errors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _busyAgents = new(StringComparer.OrdinalIgnoreCase);
+
+    private CancellationTokenSource? _refreshCts;
+    private bool _loading = true;
+    private bool _busyAll;
+    private string? _pageError;
+    private string? _modalPreview;
+    private string _lastRefreshLocal = "—";
+    private int _onlineCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+        _refreshCts = new CancellationTokenSource();
+        _ = RefreshLoopAsync(_refreshCts.Token);
+    }
+
+    private async Task RefreshLoopAsync(CancellationToken ct)
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(15));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(ct))
+                await RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _loading = true;
+            _pageError = null;
+            var agents = await Api.GetAgentsAsync();
+            _agents.Clear();
+            _agents.AddRange(agents);
+            _onlineCount = _agents.Count(a => a.IsOnline);
+            _lastRefreshLocal = DateTime.Now.ToString("HH:mm:ss");
+        }
+        catch (Exception ex)
+        {
+            _pageError = $"Failed to load agents: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RequestOneAsync(AgentInfo agent)
+    {
+        if (!agent.IsOnline || _busyAgents.Contains(agent.AgentId))
+            return;
+
+        _busyAgents.Add(agent.AgentId);
+        _errors.Remove(agent.AgentId);
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var shot = await Api.RequestAndWaitScreenshotAsync(agent.AgentId);
+            if (shot is null)
+            {
+                _errors[agent.AgentId] = "Screenshot timed out. Agent may be offline or slow.";
+            }
+            else
+            {
+                _previews[agent.AgentId] = ToDataUrl(shot.PngBytes);
+            }
+        }
+        catch (Exception ex)
+        {
+            _errors[agent.AgentId] = ex.Message;
+        }
+        finally
+        {
+            _busyAgents.Remove(agent.AgentId);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RequestAllScreenshotsAsync()
+    {
+        if (_busyAll)
+            return;
+
+        _busyAll = true;
+        _pageError = null;
+        await InvokeAsync(StateHasChanged);
+
+        var online = _agents.Where(a => a.IsOnline).ToList();
+        try
+        {
+            foreach (var agent in online)
+                await RequestOneAsync(agent);
+        }
+        finally
+        {
+            _busyAll = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private bool IsBusy(string agentId) => _busyAgents.Contains(agentId) || _busyAll;
+    private string? GetError(string agentId) => _errors.GetValueOrDefault(agentId);
+    private string? GetPreview(string agentId) => _previews.GetValueOrDefault(agentId);
+
+    private void OpenPreview(string dataUrl) => _modalPreview = dataUrl;
+    private void ClosePreview() => _modalPreview = null;
+
+    private static string ToDataUrl(byte[] pngBytes) =>
+        $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_refreshCts is not null)
+        {
+            await _refreshCts.CancelAsync();
+            _refreshCts.Dispose();
+        }
+    }
+}

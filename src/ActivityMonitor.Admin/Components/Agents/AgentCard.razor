@@ -1,0 +1,51 @@
+@using ActivityMonitor.Shared.Agents
+
+<div class="agent-card @(Agent.IsOnline ? "online" : "offline")">
+    <div class="agent-card-header">
+        <span class="status-dot" title="@(Agent.IsOnline ? "Online" : "Offline")"></span>
+        <strong class="agent-name">@Agent.UserName</strong>
+    </div>
+
+    <dl class="agent-meta">
+        <div><dt>Domain</dt><dd>@Agent.Domain</dd></div>
+        <div><dt>Machine</dt><dd>@Agent.MachineName</dd></div>
+        <div><dt>IP</dt><dd>@Agent.IpAddress</dd></div>
+        <div><dt>Last activity</dt><dd>@FormatLocal(Agent.LastActivityUtc)</dd></div>
+        <div><dt>Last seen</dt><dd>@FormatLocal(Agent.LastSeenUtc)</dd></div>
+    </dl>
+
+    <button class="btn btn-sm btn-primary w-100"
+            disabled="@(!Agent.IsOnline || Busy)"
+            @onclick="OnRequestScreenshot">
+        @(Busy ? "Waiting for screenshot..." : "Request screenshot")
+    </button>
+
+    @if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="agent-error">@Error</div>
+    }
+
+    @if (!string.IsNullOrEmpty(PreviewDataUrl))
+    {
+        <button type="button" class="screenshot-thumb" @onclick="OnOpenPreview">
+            <img src="@PreviewDataUrl" alt="Screenshot preview" />
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public AgentInfo Agent { get; set; } = default!;
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string? PreviewDataUrl { get; set; }
+    [Parameter] public EventCallback<AgentInfo> RequestScreenshot { get; set; }
+    [Parameter] public EventCallback<string> OpenPreview { get; set; }
+
+    private Task OnRequestScreenshot() => RequestScreenshot.InvokeAsync(Agent);
+    private Task OnOpenPreview() => string.IsNullOrEmpty(PreviewDataUrl)
+        ? Task.CompletedTask
+        : OpenPreview.InvokeAsync(PreviewDataUrl);
+
+    private static string FormatLocal(DateTimeOffset value) =>
+        value.ToLocalTime().ToString("dd.MM.yyyy HH:mm:ss");
+}
