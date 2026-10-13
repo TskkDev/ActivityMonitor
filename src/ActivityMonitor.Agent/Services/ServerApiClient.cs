@@ -42,5 +42,15 @@ internal sealed class ServerApiClient : IDisposable
         response.EnsureSuccessStatusCode();
     }
 
+    public async Task DisconnectAsync(string agentId, CancellationToken ct = default)
+    {
+        var path = $"api/agents/{Uri.EscapeDataString(agentId)}/disconnect";
+        using var response = await _http.PostAsync(path, content: null, ct);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return;
+        response.EnsureSuccessStatusCode();
+    }
+
     public void Dispose() => _http.Dispose();
 }
+

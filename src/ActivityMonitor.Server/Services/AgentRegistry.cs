@@ -14,6 +14,14 @@ public sealed class AgentRegistry
     private readonly ConcurrentDictionary<string, StoredScreenshot> _screenshots =
         new(StringComparer.OrdinalIgnoreCase);
 
+    private readonly TimeSpan _offlineAfter;
+
+    public AgentRegistry(IConfiguration configuration)
+    {
+        var seconds = configuration.GetValue("AgentOfflineAfterSeconds", 15);
+        _offlineAfter = TimeSpan.FromSeconds(Math.Max(seconds, 5));
+    }
+
     public AgentInfo Register(RegisterAgentRequest request, string ipAddress)
     {
         var now = DateTimeOffset.UtcNow;
@@ -38,7 +46,7 @@ public sealed class AgentRegistry
             return existing;
         });
 
-        return _agents[request.AgentId];
+        return Snapshot(_agents[request.AgentId]);
     }
 
     public bool TryHeartbeat(string agentId, HeartbeatRequest request, out HeartbeatResponse? response)
@@ -55,16 +63,28 @@ public sealed class AgentRegistry
 
         response = new HeartbeatResponse
         {
-            Agent = info,
+            Agent = Snapshot(info),
             PendingScreenshotRequestId = pendingId == Guid.Empty ? null : pendingId
         };
+        return true;
+    }
+
+    public bool TryDisconnect(string agentId)
+    {
+        if (!_agents.TryGetValue(agentId, out var info))
+            return false;
+
+        info.IsOnline = false;
+        info.LastSeenUtc = DateTimeOffset.UtcNow;
+        _pendingScreenshots.TryRemove(agentId, out _);
         return true;
     }
 
     public bool TryRequestScreenshot(string agentId, out ScreenshotRequestResult? result)
     {
         result = null;
-        if (!_agents.TryGetValue(agentId, out _))
+        RefreshOnlineFlags();
+        if (!_agents.TryGetValue(agentId, out var info) || !info.IsOnline)
             return false;
 
         var requestId = Guid.NewGuid();
@@ -94,12 +114,39 @@ public sealed class AgentRegistry
         return _screenshots.TryGetValue(agentId, out screenshot);
     }
 
-    public IReadOnlyCollection<AgentInfo> GetAll() =>
-        _agents.Values
+    public IReadOnlyCollection<AgentInfo> GetAll()
+    {
+        RefreshOnlineFlags();
+        return _agents.Values
+            .Select(Snapshot)
             .OrderByDescending(a => a.IsOnline)
             .ThenBy(a => a.MachineName)
             .ThenBy(a => a.UserName)
             .ToArray();
+    }
+
+    private void RefreshOnlineFlags()
+    {
+        var threshold = DateTimeOffset.UtcNow - _offlineAfter;
+        foreach (var agent in _agents.Values)
+        {
+            if (agent.IsOnline && agent.LastSeenUtc < threshold)
+                agent.IsOnline = false;
+        }
+    }
+
+    private static AgentInfo Snapshot(AgentInfo source) => new()
+    {
+        AgentId = source.AgentId,
+        Domain = source.Domain,
+        MachineName = source.MachineName,
+        UserName = source.UserName,
+        IpAddress = source.IpAddress,
+        RegisteredAtUtc = source.RegisteredAtUtc,
+        LastSeenUtc = source.LastSeenUtc,
+        LastActivityUtc = source.LastActivityUtc,
+        IsOnline = source.IsOnline
+    };
 }
 
 public sealed record StoredScreenshot(Guid RequestId, byte[] PngBytes, DateTimeOffset CapturedAtUtc);

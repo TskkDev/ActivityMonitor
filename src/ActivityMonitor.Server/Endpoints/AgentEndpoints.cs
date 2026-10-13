@@ -28,6 +28,16 @@ public static class AgentEndpoints
             .WithName("AgentHeartbeat")
             .WithSummary("Heartbeat and pending commands");
 
+        group.MapPost("/{agentId}/disconnect", (string agentId, AgentRegistry registry) =>
+            {
+                if (!registry.TryDisconnect(agentId))
+                    return Results.NotFound(new { message = $"Agent '{agentId}' is not registered." });
+
+                return Results.NoContent();
+            })
+            .WithName("DisconnectAgent")
+            .WithSummary("Mark agent offline");
+
         group.MapPost("/{agentId}/screenshot/request", (string agentId, AgentRegistry registry) =>
             {
                 if (!registry.TryRequestScreenshot(agentId, out var result) || result is null)

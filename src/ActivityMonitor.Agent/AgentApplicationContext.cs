@@ -15,6 +15,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
     private readonly NotifyIcon _tray;
     private readonly CancellationTokenSource _cts = new();
     private readonly AgentSettings _settings;
+    private int _shuttingDown;
 
     public AgentApplicationContext()
     {
@@ -29,6 +30,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
             ContextMenuStrip = BuildMenu()
         };
 
+        Application.ApplicationExit += (_, _) => _ = DisconnectBestEffortAsync();
         _ = Task.Run(() => RunLoopAsync(_cts.Token));
     }
 
@@ -46,7 +48,7 @@ internal sealed class AgentApplicationContext : ApplicationContext
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         });
-        menu.Items.Add("Exit", null, (_, _) => Shutdown());
+        menu.Items.Add("Exit", null, async (_, _) => await ShutdownAsync());
         return menu;
     }
 
@@ -127,8 +129,13 @@ internal sealed class AgentApplicationContext : ApplicationContext
             Apply();
     }
 
-    private void Shutdown()
+    private async Task ShutdownAsync()
     {
+        if (Interlocked.Exchange(ref _shuttingDown, 1) == 1)
+            return;
+
+        SetStatus("Disconnecting...");
+        await DisconnectBestEffortAsync();
         _cts.Cancel();
         _tray.Visible = false;
         _tray.Dispose();
@@ -136,10 +143,26 @@ internal sealed class AgentApplicationContext : ApplicationContext
         ExitThread();
     }
 
+    private async Task DisconnectBestEffortAsync()
+    {
+        try
+        {
+            using var api = new ServerApiClient(_settings.ServerBaseUrl);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            await api.DisconnectAsync(WorkstationIdentity.AgentId, timeout.Token);
+        }
+        catch
+        {
+        }
+    }
+
     protected override void Dispose(bool disposing)
     {
         if (disposing)
         {
+            if (Interlocked.Exchange(ref _shuttingDown, 1) == 0)
+                DisconnectBestEffortAsync().GetAwaiter().GetResult();
+
             if (!_cts.IsCancellationRequested)
                 _cts.Cancel();
             _tray.Visible = false;
